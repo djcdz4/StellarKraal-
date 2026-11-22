@@ -35,8 +35,7 @@ import { getProfile, updateProfile, insertAuditEntry, listCollateral, listLoans,
 import { updateProfileSchema } from '../validators/profile';
 import { validate } from '../middleware/validate';
 import { auditMiddleware, redact, auditLogger } from '../middleware/audit';
-import { requireRole } from '../middleware/requireRole';
-import { setUserRole, isValidRole } from '../db/store';
+import { idempotencyMiddleware } from '../middleware/idempotency';
 import { etagMiddleware } from '../utils/etag';
 import {
   loanRequestSchema,
@@ -116,6 +115,7 @@ v1Router.get('/health', async (req: Request, res: Response, next: NextFunction) 
 v1Router.post(
   '/collateral/register',
   auditMiddleware,
+  idempotencyMiddleware,
   timeoutMiddleware(parseInt(config.TIMEOUT_WRITE_MS, 10)),
   writeLimiter,
   asyncHandler(async (req: Request, res: Response) => {
@@ -124,13 +124,14 @@ v1Router.post(
       return res.status(400).json({ error: 'Validation failed', details: validation.error.issues });
     }
     const result = await registerCollateral(validation.data);
-    res.json(result);
+    res.status(201).json(result);
   })
 );
 
 v1Router.post(
   '/collateral/register/batch',
   auditMiddleware,
+  idempotencyMiddleware,
   timeoutMiddleware(parseInt(config.TIMEOUT_WRITE_MS, 10)),
   writeLimiter,
   asyncHandler(async (req: Request, res: Response) => {
